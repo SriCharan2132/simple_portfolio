@@ -1,0 +1,665 @@
+//C PROGRAM FOR ONLINE FLIGHT TICKET BOOKING
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define MAX_AIRLINES 5
+#define MAX_FLIGHTS_PER_AIRLINE 5
+#define MAX_NAME_LENGTH 50
+#define MAX_ADDRESS_LENGTH 100
+#define TAX_RATE 0.15
+
+
+typedef struct {
+    char flightNumber[MAX_NAME_LENGTH];
+    char departure[MAX_NAME_LENGTH];
+    char arrival[MAX_NAME_LENGTH];
+    char departureTime[MAX_NAME_LENGTH];
+    char arrivalTime[MAX_NAME_LENGTH];
+    int availableSeats;
+    double price;
+} Flight;
+
+typedef struct {
+    char first_name[MAX_NAME_LENGTH];
+    char last_name[MAX_NAME_LENGTH];
+    int age;
+    char ph_no[MAX_NAME_LENGTH];
+    char email[MAX_NAME_LENGTH];
+    char nationality[MAX_NAME_LENGTH];
+    char address[MAX_ADDRESS_LENGTH];
+    int seatNumber;
+    double totalPrice;
+    char paymentMethod[MAX_NAME_LENGTH];
+    char creditCardNumber[20];
+    char debitCardNumber[20];
+    char payPalEmail[MAX_NAME_LENGTH];
+    char billingAddress[MAX_ADDRESS_LENGTH];
+    Flight selectedFlight;
+    char seatPreference[MAX_NAME_LENGTH]; // Window, Aisle, Middle, etc.
+} Passenger;
+
+typedef struct node {
+    Passenger passenger;
+    struct node* next;
+} Node;
+
+typedef struct {
+    Node* front;
+    Node* rear;
+} Queue;
+
+typedef struct {
+    char name[MAX_NAME_LENGTH];
+    Flight flights[MAX_FLIGHTS_PER_AIRLINE];
+    int numFlights;
+} Airline;
+
+typedef struct {
+    Airline airlines[MAX_AIRLINES];
+    int numAirlines;
+} AirlineSystem;
+
+// Function to save ticket details to a file
+void saveTicketToFile(Passenger passenger, Flight flight, const char airlineName[]) {
+    FILE* file = fopen("tickets.txt", "a"); // Open in append mode
+    if (file == NULL) {
+        printf("Error opening file.\n");
+        return;
+    }
+
+    fprintf(file, "Passenger: %s %s\n", passenger.first_name, passenger.last_name);
+    fprintf(file, "Age: %d\n", passenger.age);
+    fprintf(file, "Nationality: %s\n", passenger.nationality);
+    fprintf(file, "Email: %s\n", passenger.email);
+    fprintf(file, "Phone number: %s\n", passenger.ph_no);
+    fprintf(file, "Address: %s\n", passenger.address);
+
+    fprintf(file, "Airline: %s\n", airlineName);
+    fprintf(file, "Flight Number: %s\n", flight.flightNumber);
+    fprintf(file, "Departure: %s\n", flight.departure);
+    fprintf(file, "Arrival: %s\n", flight.arrival);
+    fprintf(file, "Departure Time: %s\n", flight.departureTime);
+    fprintf(file, "Arrival Time: %s\n", flight.arrivalTime);
+
+    fprintf(file, "Seat Preference: %s\n", passenger.seatPreference);
+    fprintf(file, "Seat Number: %d\n", passenger.seatNumber);
+    fprintf(file, "Price: $%.2f\n", passenger.totalPrice);
+    fprintf(file, "Payment Method: %s\n", passenger.paymentMethod);
+
+    // Specific payment details based on the chosen method
+    if (strcmp(passenger.paymentMethod, "Credit Card") == 0) {
+        fprintf(file, "Credit Card Number: %s\n", passenger.creditCardNumber);
+    } else if (strcmp(passenger.paymentMethod, "Debit Card") == 0) {
+        fprintf(file, "Debit Card Number: %s\n", passenger.debitCardNumber);
+    } else if (strcmp(passenger.paymentMethod, "PayPal") == 0) {
+        fprintf(file, "PayPal Email: %s\n", passenger.payPalEmail);
+    }
+
+    fprintf(file, "Billing Address: %s\n", passenger.billingAddress);
+    fprintf(file, "\n"); // New line between records
+
+    fclose(file); // Close the file to save data
+}
+
+
+
+
+void displayMenu() {
+    printf("\nMenu:\n");
+    printf("*****\n");
+    printf("1. Book a ticket\n");
+     printf("*****\n");
+    printf("2. Cancel a ticket\n");
+     printf("*****\n");
+    printf("3. View Booking History\n");
+     printf("*****\n");
+    printf("4. Check Flight Status\n");
+     printf("*****\n");
+    printf("0. Exit\n");
+     printf("*****\n");
+    printf("Enter your choice: ");
+}
+
+void enqueue(Queue* queue, Passenger passenger) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    if (newNode == NULL) {
+        printf("Memory allocation failed.\n");
+        return;
+    }
+    newNode->passenger = passenger;
+    newNode->next = NULL;
+
+    if (queue->rear == NULL) {
+        queue->front = queue->rear = newNode;
+    } else {
+        queue->rear->next = newNode;
+        queue->rear = newNode;
+    }
+}
+
+void bookTicket(AirlineSystem* airlineSystem, Queue* queue) {
+    int numTickets;
+    Passenger passenger;
+    int airlineChoice;
+
+    printf("How many tickets would you like to book? ");
+    scanf("%d", &numTickets);
+
+    for (int i = 0; i < numTickets; i++) {
+        printf("\nBooking ticket %d of %d:\n", i + 1, numTickets);
+
+        // Collect passenger information
+        printf("Enter passenger first name: ");
+        scanf("%s", passenger.first_name);
+        printf("Enter passenger last name: ");
+        scanf("%s", passenger.last_name);
+        printf("Enter passenger age: ");
+        scanf("%d", &passenger.age);
+        printf("Enter passenger nationality: ");
+        scanf("%s", passenger.nationality);
+        printf("Enter passenger email: ");
+        scanf("%s", passenger.email);
+        printf("Enter passenger phone number: ");
+        scanf("%s", passenger.ph_no);
+        printf("Enter passenger address: ");
+        scanf("%s", passenger.address);
+
+        int validAirlineChoice = 0;
+
+        while (!validAirlineChoice) {
+            // Choose an airline
+            printf("Choose an airline:\n");
+            for (int j = 0; j < airlineSystem->numAirlines; j++) {
+                printf("%d. %s\n", j + 1, airlineSystem->airlines[j].name);
+            }
+            scanf("%d", &airlineChoice);
+            airlineChoice--; // Convert to zero-based index
+
+            if (airlineChoice < 0 || airlineChoice >= airlineSystem->numAirlines) {
+                printf("Invalid choice. Please try again.\n");
+                continue;
+            }
+
+            validAirlineChoice = 1;
+
+            int validFlightChoice = 0;
+
+            while (!validFlightChoice) {
+                // Available flights for chosen airline
+                printf("Available flights for %s:\n", airlineSystem->airlines[airlineChoice].name);
+                for (int j = 0; j < airlineSystem->airlines[airlineChoice].numFlights; j++) {
+                    Flight flight = airlineSystem->airlines[airlineChoice].flights[j];
+                    printf("%d. Flight Number: %s, Departure: %s, Arrival: %s, Departure Time: %s, Arrival Time: %s, Available Seats: %d, Price: $%.2f\n",
+                           j + 1, flight.flightNumber, flight.departure, flight.arrival, flight.departureTime, flight.arrivalTime, flight.availableSeats, flight.price);
+                }
+
+                // Choose a flight
+                int flightChoice;
+                printf("Choose a flight: ");
+                scanf("%d", &flightChoice);
+                flightChoice--; // Convert to zero-based index
+
+                if (flightChoice < 0 || flightChoice >= airlineSystem->airlines[airlineChoice].numFlights) {
+                    printf("Invalid choice. Please try again.\n");
+                    continue;
+                }
+
+                Flight selectedFlight = airlineSystem->airlines[airlineChoice].flights[flightChoice];
+
+                if (selectedFlight.availableSeats <= 0) {
+                    printf("Sorry, no available seats for this flight.\n");
+                    continue; // Retry flight choice
+                }
+
+                airlineSystem->airlines[airlineChoice].flights[flightChoice].availableSeats--;
+
+                passenger.selectedFlight = selectedFlight;
+                passenger.seatNumber = selectedFlight.availableSeats;
+
+                // Seat preference
+                printf("Choose seat preference (1. Window, 2. Aisle, 3. Middle): ");
+                int seatPreferenceChoice;
+                scanf("%d", &seatPreferenceChoice);
+
+                switch (seatPreferenceChoice) {
+                    case 1:
+                        strcpy(passenger.seatPreference, "Window");
+                        passenger.selectedFlight.price += 20; // Additional price for Window seat
+                        break;
+                    case 2:
+                        strcpy(passenger.seatPreference, "Aisle");
+                        passenger.selectedFlight.price += 10; // Additional price for Aisle seat
+                        break;
+                    case 3:
+                        strcpy(passenger.seatPreference, "Middle");
+                        break;
+                    default:
+                        printf("Invalid choice. Please try again.\n");
+                        continue; // Retry seat preference choice
+                }
+
+                // Confirm or reconsider flight choice
+                printf("Do you want to confirm this flight? (1. Yes, 2. No): ");
+                int confirmChoice;
+                scanf("%d", &confirmChoice);
+
+                if (confirmChoice == 2) {
+                    airlineSystem->airlines[airlineChoice].flights[flightChoice].availableSeats++;
+                    continue; // Retry flight choice
+                }
+
+                // Payment method
+                printf("Choose payment method:\n");
+                printf("1. Credit Card\n");
+                printf("2. Debit Card\n");
+                printf("3. PayPal\n");
+                int paymentMethodChoice;
+                scanf("%d", &paymentMethodChoice);
+
+                switch (paymentMethodChoice) {
+                    case 1:
+                        printf("Enter credit card number: ");
+                        scanf("%s", passenger.creditCardNumber);
+                        strcpy(passenger.paymentMethod, "Credit Card");
+                        break;
+                    case 2:
+                        printf("Enter debit card number: ");
+                        scanf("%s", passenger.debitCardNumber);
+                        strcpy(passenger.paymentMethod, "Debit Card");
+                        break;
+                    case 3:
+                        printf("Enter PayPal email: ");
+                        scanf("%s", passenger.payPalEmail);
+                        strcpy(passenger.paymentMethod, "PayPal");
+                        break;
+                    default:
+                        printf("Invalid choice. Please try again.\n");
+                        continue; // Retry payment method choice
+                }
+
+                printf("Enter billing address: ");
+                scanf("%s", passenger.billingAddress);
+
+                double totalPrice = passenger.selectedFlight.price * (1 + TAX_RATE);
+                passenger.totalPrice = totalPrice;
+
+                enqueue(queue, passenger);
+
+                printf("Total price (including taxes): $%.2f\n", passenger.totalPrice);
+
+                saveTicketToFile(passenger, passenger.selectedFlight, airlineSystem->airlines[airlineChoice].name);
+
+                // Display booking information
+                 printf("*****\n");
+                printf("\nBooking Successful!\n");
+                 printf("*****\n");
+                printf("Passenger Details:\n");
+                 printf("*****\n");
+                printf("Name: %s %s\n", passenger.first_name, passenger.last_name);
+                printf("Age: %d\n", passenger.age);
+                printf("Nationality: %s\n", passenger.nationality);
+                printf("Email: %s\n", passenger.email);
+                printf("Phone number: %s\n",passenger.ph_no);
+                printf("Address: %s\n", passenger.address);
+                 printf("*****\n");
+                  printf("*****\n");
+                printf("Flight Details:\n");
+                 printf("*****\n");
+                printf("Airline: %s\n", airlineSystem->airlines[airlineChoice].name);
+                printf("Flight Number: %s\n", passenger.selectedFlight.flightNumber);
+                printf("Departure: %s\n", passenger.selectedFlight.departure);
+                printf("Arrival: %s\n", passenger.selectedFlight.arrival);
+                printf("Departure Time: %s\n", passenger.selectedFlight.departureTime);
+                printf("Arrival Time: %s\n", passenger.selectedFlight.arrivalTime);
+                printf("Seat Preference: %s\n", passenger.seatPreference);
+                printf("Seat Number: %d\n", passenger.seatNumber);
+
+                validFlightChoice = 1; // Successfully booked, exit the flight choice loop
+            }
+        }
+    }
+}
+
+void cancelTicket(AirlineSystem* airlineSystem, Queue* queue) {
+    
+    if (queue->front == NULL) {
+         printf("*****\n");
+        printf("No tickets booked.\n");
+         printf("*****\n");
+        return;
+    }
+
+    char flightNumber[MAX_NAME_LENGTH];
+    int seatNumber;
+
+    printf("Enter flight number to cancel: ");
+    scanf("%s", flightNumber);
+    printf("Enter seat number to cancel: ");
+    scanf("%d", &seatNumber);
+
+    Node* current = queue->front;
+    Node* prev = NULL;
+
+    while (current != NULL) {
+        if (strcmp(current->passenger.selectedFlight.flightNumber, flightNumber) == 0 &&
+            current->passenger.seatNumber == seatNumber) {
+            // Flight cancellation process
+            for (int i = 0; i < airlineSystem->numAirlines; i++) {
+                for (int j = 0; j < airlineSystem->airlines[i].numFlights; j++) {
+                    if (strcmp(airlineSystem->airlines[i].flights[j].flightNumber, flightNumber) == 0) {
+                        airlineSystem->airlines[i].flights[j].availableSeats++;
+                        break;
+                    }
+                }
+            }
+
+            if (prev == NULL) {
+                queue->front = current->next;
+            } else {
+                prev->next = current->next;
+            }
+
+            if (queue->rear == current) {
+                queue->rear = prev;
+            }
+
+            free(current);
+             printf("*****\n");
+            printf("Ticket for flight number %s and seat number %d has been canceled.\n", flightNumber, seatNumber);
+             printf("*****\n");
+            
+            return;
+        }
+
+        prev = current;
+        current = current->next;
+    }
+
+    printf("No ticket found with flight number %s and seat number %d.\n", flightNumber, seatNumber);
+}
+
+void viewBookingHistory() {
+    FILE* file = fopen("tickets.txt", "r");
+    if (file == NULL) {
+         printf("*****\n");
+        printf("No booking history available.\n");
+        return;
+    }
+
+    printf("Booking History:\n");
+    char line[200];
+     printf("*****\n");
+    while (fgets(line, sizeof(line), file)) {
+        printf("%s", line);
+    }
+     printf("*****\n");
+    fclose(file);
+}
+
+void checkFlightStatus() {
+    char flightNumber[MAX_NAME_LENGTH];
+    printf("Enter flight number to check status: ");
+    scanf("%s", flightNumber);
+     printf("*****\n");
+
+    printf("Flight %s status: On-time.\n", flightNumber);
+     printf("*****\n");
+}
+
+int main() {
+    AirlineSystem airlineSystem;
+    airlineSystem.numAirlines = 5;
+
+    // Air India
+    strcpy(airlineSystem.airlines[0].name, "Air India");
+    airlineSystem.airlines[0].numFlights = 5;
+
+    strcpy(airlineSystem.airlines[0].flights[0].flightNumber, "AI101");
+    strcpy(airlineSystem.airlines[0].flights[0].departure, "Delhi");
+    strcpy(airlineSystem.airlines[0].flights[0].arrival, "Mumbai");
+    strcpy(airlineSystem.airlines[0].flights[0].departureTime, "07:00 AM");
+    strcpy(airlineSystem.airlines[0].flights[0].arrivalTime, "09:00 AM");
+    airlineSystem.airlines[0].flights[0].availableSeats = 100;
+    airlineSystem.airlines[0].flights[0].price = 150.0;
+
+    strcpy(airlineSystem.airlines[0].flights[1].flightNumber, "AI102");
+    strcpy(airlineSystem.airlines[0].flights[1].departure, "Mumbai");
+    strcpy(airlineSystem.airlines[0].flights[1].arrival, "Chennai");
+    strcpy(airlineSystem.airlines[0].flights[1].departureTime, "10:30 AM");
+    strcpy(airlineSystem.airlines[0].flights[1].arrivalTime, "12:30 PM");
+    airlineSystem.airlines[0].flights[1].availableSeats = 100;
+    airlineSystem.airlines[0].flights[1].price = 180.0;
+
+    strcpy(airlineSystem.airlines[0].flights[2].flightNumber, "AI103");
+    strcpy(airlineSystem.airlines[0].flights[2].departure, "Kolkata");
+    strcpy(airlineSystem.airlines[0].flights[2].arrival, "Delhi");
+    strcpy(airlineSystem.airlines[0].flights[2].departureTime, "01:00 PM");
+    strcpy(airlineSystem.airlines[0].flights[2].arrivalTime, "03:30 PM");
+    airlineSystem.airlines[0].flights[2].availableSeats = 100;
+    airlineSystem.airlines[0].flights[2].price = 170.0;
+
+    strcpy(airlineSystem.airlines[0].flights[3].flightNumber, "AI104");
+    strcpy(airlineSystem.airlines[0].flights[3].departure, "Bengaluru");
+    strcpy(airlineSystem.airlines[0].flights[3].arrival, "Hyderabad");
+    strcpy(airlineSystem.airlines[0].flights[3].departureTime, "04:00 PM");
+    strcpy(airlineSystem.airlines[0].flights[3].arrivalTime, "05:30 PM");
+    airlineSystem.airlines[0].flights[3].availableSeats = 100;
+    airlineSystem.airlines[0].flights[3].price = 160.0;
+
+    strcpy(airlineSystem.airlines[0].flights[4].flightNumber, "AI105");
+    strcpy(airlineSystem.airlines[0].flights[4].departure, "Delhi");
+    strcpy(airlineSystem.airlines[0].flights[4].arrival, "Bengaluru");
+    strcpy(airlineSystem.airlines[0].flights[4].departureTime, "06:00 PM");
+    strcpy(airlineSystem.airlines[0].flights[4].arrivalTime, "08:30 PM");
+    airlineSystem.airlines[0].flights[4].availableSeats = 100;
+    airlineSystem.airlines[0].flights[4].price = 175.0;
+
+    // IndiGo flights
+    strcpy(airlineSystem.airlines[1].name, "IndiGo");
+    airlineSystem.airlines[1].numFlights = 5;
+
+    strcpy(airlineSystem.airlines[1].flights[0].flightNumber, "6E201");
+    strcpy(airlineSystem.airlines[1].flights[0].departure, "Bengaluru");
+    strcpy(airlineSystem.airlines[1].flights[0].arrival, "Pune");
+    strcpy(airlineSystem.airlines[1].flights[0].departureTime, "06:00 AM");
+    strcpy(airlineSystem.airlines[1].flights[0].arrivalTime, "07:45 AM");
+    airlineSystem.airlines[1].flights[0].availableSeats = 100;
+    airlineSystem.airlines[1].flights[0].price = 120.0;
+
+    strcpy(airlineSystem.airlines[1].flights[1].flightNumber, "6E202");
+    strcpy(airlineSystem.airlines[1].flights[1].departure, "Pune");
+    strcpy(airlineSystem.airlines[1].flights[1].arrival, "Delhi");
+    strcpy(airlineSystem.airlines[1].flights[1].departureTime, "08:30 AM");
+    strcpy(airlineSystem.airlines[1].flights[1].arrivalTime, "10:15 AM");
+    airlineSystem.airlines[1].flights[1].availableSeats =100;
+    airlineSystem.airlines[1].flights[1].price = 130.0;
+
+    strcpy(airlineSystem.airlines[1].flights[2].flightNumber, "6E203");
+    strcpy(airlineSystem.airlines[1].flights[2].departure, "Delhi");
+    strcpy(airlineSystem.airlines[1].flights[2].arrival, "Kochi");
+    strcpy(airlineSystem.airlines[1].flights[2].departureTime, "11:00 AM");
+    strcpy(airlineSystem.airlines[1].flights[2].arrivalTime, "01:45 PM");
+    airlineSystem.airlines[1].flights[2].availableSeats = 100;
+    airlineSystem.airlines[1].flights[2].price = 140.0;
+
+    strcpy(airlineSystem.airlines[1].flights[3].flightNumber, "6E204");
+    strcpy(airlineSystem.airlines[1].flights[3].departure, "Chennai");
+    strcpy(airlineSystem.airlines[1].flights[3].arrival, "Bengaluru");
+   strcpy(airlineSystem.airlines[1].flights[3].departureTime, "02:30 PM");
+    strcpy(airlineSystem.airlines[1].flights[3].arrivalTime, "03:45 PM");
+    airlineSystem.airlines[1].flights[3].availableSeats = 100;
+    airlineSystem.airlines[1].flights[3].price = 125.0;
+    strcpy(airlineSystem.airlines[1].flights[4].flightNumber, "6E205");
+    strcpy(airlineSystem.airlines[1].flights[4].departure, "Bengaluru");
+    strcpy(airlineSystem.airlines[1].flights[4].arrival, "Mumbai");
+    strcpy(airlineSystem.airlines[1].flights[4].departureTime, "04:30 PM");
+    strcpy(airlineSystem.airlines[1].flights[4].arrivalTime, "06:15 PM");
+    airlineSystem.airlines[1].flights[4].availableSeats = 100;
+    airlineSystem.airlines[1].flights[4].price = 135.0;
+
+    // SpiceJet flights
+    strcpy(airlineSystem.airlines[2].name, "SpiceJet");
+    airlineSystem.airlines[2].numFlights = 5;
+
+    strcpy(airlineSystem.airlines[2].flights[0].flightNumber, "SG301");
+    strcpy(airlineSystem.airlines[2].flights[0].departure, "Hyderabad");
+    strcpy(airlineSystem.airlines[2].flights[0].arrival, "Delhi");
+    strcpy(airlineSystem.airlines[2].flights[0].departureTime, "07:30 AM");
+    strcpy(airlineSystem.airlines[2].flights[0].arrivalTime, "09:45 AM");
+    airlineSystem.airlines[2].flights[0].availableSeats = 100;
+    airlineSystem.airlines[2].flights[0].price = 140.0;
+
+    strcpy(airlineSystem.airlines[2].flights[1].flightNumber, "SG302");
+    strcpy(airlineSystem.airlines[2].flights[1].departure, "Delhi");
+    strcpy(airlineSystem.airlines[2].flights[1].arrival, "Jaipur");
+    strcpy(airlineSystem.airlines[2].flights[1].departureTime, "10:30 AM");
+    strcpy(airlineSystem.airlines[2].flights[1].arrivalTime, "11:45 AM");
+    airlineSystem.airlines[2].flights[1].availableSeats = 100;
+    airlineSystem.airlines[2].flights[1].price = 145.0;
+
+    strcpy(airlineSystem.airlines[2].flights[2].flightNumber, "SG303");
+    strcpy(airlineSystem.airlines[2].flights[2].departure, "Mumbai");
+    strcpy(airlineSystem.airlines[2].flights[2].arrival, "Hyderabad");
+    strcpy(airlineSystem.airlines[2].flights[2].departureTime, "01:00 PM");
+    strcpy(airlineSystem.airlines[2].flights[2].arrivalTime, "03:00 PM");
+    airlineSystem.airlines[2].flights[2].availableSeats = 100;
+    airlineSystem.airlines[2].flights[2].price = 150.0;
+
+    strcpy(airlineSystem.airlines[2].flights[3].flightNumber, "SG304");
+    strcpy(airlineSystem.airlines[2].flights[3].departure, "Chennai");
+    strcpy(airlineSystem.airlines[2].flights[3].arrival, "Bengaluru");
+    strcpy(airlineSystem.airlines[2].flights[3].departureTime, "04:00 PM");
+    strcpy(airlineSystem.airlines[2].flights[3].arrivalTime, "05:15 PM");
+    airlineSystem.airlines[2].flights[3].availableSeats = 100;
+    airlineSystem.airlines[2].flights[3].price = 155.0;
+
+    strcpy(airlineSystem.airlines[2].flights[4].flightNumber, "SG305");
+    strcpy(airlineSystem.airlines[2].flights[4].departure, "Jaipur");
+    strcpy(airlineSystem.airlines[2].flights[4].arrival, "Mumbai");
+    strcpy(airlineSystem.airlines[2].flights[4].departureTime, "06:00 PM");
+    strcpy(airlineSystem.airlines[2].flights[4].arrivalTime, "08:15 PM");
+    airlineSystem.airlines[2].flights[4].availableSeats = 100;
+    airlineSystem.airlines[2].flights[4].price = 160.0;
+
+    // Go First flights
+    strcpy(airlineSystem.airlines[3].name, "Go First");
+    airlineSystem.airlines[3].numFlights = 5;
+
+    strcpy(airlineSystem.airlines[3].flights[0].flightNumber, "G81301");
+    strcpy(airlineSystem.airlines[3].flights[0].departure, "Mumbai");
+    strcpy(airlineSystem.airlines[3].flights[0].arrival, "Pune");
+    strcpy(airlineSystem.airlines[3].flights[0].departureTime, "06:30 AM");
+    strcpy(airlineSystem.airlines[3].flights[0].arrivalTime, "07:45 AM");
+    airlineSystem.airlines[3].flights[0].availableSeats = 100;
+    airlineSystem.airlines[3].flights[0].price = 110.0;
+
+    strcpy(airlineSystem.airlines[3].flights[1].flightNumber, "G81302");
+    strcpy(airlineSystem.airlines[3].flights[1].departure, "Pune");
+    strcpy(airlineSystem.airlines[3].flights[1].arrival, "Hyderabad");
+    strcpy(airlineSystem.airlines[3].flights[1].departureTime, "08:30 AM");
+    strcpy(airlineSystem.airlines[3].flights[1].arrivalTime, "10:30 AM");
+    airlineSystem.airlines[3].flights[1].availableSeats = 100;
+    airlineSystem.airlines[3].flights[1].price = 120.0;
+
+    strcpy(airlineSystem.airlines[3].flights[2].flightNumber, "G81303");
+    strcpy(airlineSystem.airlines[3].flights[2].departure, "Hyderabad");
+    strcpy(airlineSystem.airlines[3].flights[2].arrival, "Chennai");
+    strcpy(airlineSystem.airlines[3].flights[2].departureTime, "11:15 AM");
+    strcpy(airlineSystem.airlines[3].flights[3].arrivalTime, "01:15 PM");
+    airlineSystem.airlines[3].flights[3].availableSeats = 100;
+    airlineSystem.airlines[3].flights[3].price = 125.0;
+
+    strcpy(airlineSystem.airlines[3].flights[3].flightNumber, "G81304");
+    strcpy(airlineSystem.airlines[3].flights[3].departure, "Bengaluru");
+    strcpy(airlineSystem.airlines[3].flights[3].arrival, "Delhi");
+    strcpy(airlineSystem.airlines[3].flights[3].departureTime, "02:30 PM");
+    strcpy(airlineSystem.airlines[3].flights[3].arrivalTime, "05:00 PM");
+    airlineSystem.airlines[3].flights[3].availableSeats = 100;
+    airlineSystem.airlines[3].flights[3].price = 130.0;
+
+    strcpy(airlineSystem.airlines[3].flights[4].flightNumber, "G81305");
+    strcpy(airlineSystem.airlines[3].flights[4].departure, "Delhi");
+    strcpy(airlineSystem.airlines[3].flights[4].arrival, "Kolkata");
+    strcpy(airlineSystem.airlines[3].flights[4].departureTime, "06:30 PM");
+    strcpy(airlineSystem.airlines[3].flights[4].arrivalTime, "09:15 PM");
+    airlineSystem.airlines[3].flights[4].availableSeats = 100;
+    airlineSystem.airlines[3].flights[4].price = 135.0;
+
+    // Vistara flights
+    strcpy(airlineSystem.airlines[4].name, "Vistara");
+    airlineSystem.airlines[4].numFlights = 5;
+
+    strcpy(airlineSystem.airlines[4].flights[0].flightNumber, "UK401");
+    strcpy(airlineSystem.airlines[4].flights[0].departure, "Delhi");
+    strcpy(airlineSystem.airlines[4].flights[0].arrival, "Kolkata");
+    strcpy(airlineSystem.airlines[4].flights[0].departureTime, "07:00 AM");
+    strcpy(airlineSystem.airlines[4].flights[0].arrivalTime, "09:45 AM");
+    airlineSystem.airlines[4].flights[0].availableSeats = 100;
+    airlineSystem.airlines[4].flights[0].price = 150.0;
+
+    strcpy(airlineSystem.airlines[4].flights[1].flightNumber, "UK402");
+    strcpy(airlineSystem.airlines[4].flights[1].departure, "Kolkata");
+    strcpy(airlineSystem.airlines[4].flights[1].arrival, "Bengaluru");
+    strcpy(airlineSystem.airlines[4].flights[1].departureTime, "10:30 AM");
+    strcpy(airlineSystem.airlines[4].flights[1].arrivalTime, "01:00 PM");
+    airlineSystem.airlines[4].flights[1].availableSeats = 100;
+    airlineSystem.airlines[4].flights[1].price = 160.0;
+
+    strcpy(airlineSystem.airlines[4].flights[2].flightNumber, "UK403");
+    strcpy(airlineSystem.airlines[4].flights[2].departure, "Bengaluru");
+    strcpy(airlineSystem.airlines[4].flights[2].arrival, "Delhi");
+    strcpy(airlineSystem.airlines[4].flights[2].departureTime, "02:30 PM");
+    strcpy(airlineSystem.airlines[4].flights[2].arrivalTime, "05:00 PM");
+    airlineSystem.airlines[4].flights[2].availableSeats = 100;
+    airlineSystem.airlines[4].flights[2].price = 170.0;
+
+    strcpy(airlineSystem.airlines[4].flights[3].flightNumber, "UK404");
+    strcpy(airlineSystem.airlines[4].flights[3].departure, "Delhi");
+    strcpy(airlineSystem.airlines[4].flights[3].arrival, "Mumbai");
+    strcpy(airlineSystem.airlines[4].flights[3].departureTime, "06:00 PM");
+    strcpy(airlineSystem.airlines[4].flights[3].arrivalTime, "08:30 PM");
+    airlineSystem.airlines[4].flights[3].availableSeats = 100;
+    airlineSystem.airlines[4].flights[3].price = 180.0;
+
+    strcpy(airlineSystem.airlines[4].flights[4].flightNumber, "UK405");
+    strcpy(airlineSystem.airlines[4].flights[4].departure, "Mumbai");
+    strcpy(airlineSystem.airlines[4].flights[4].arrival, "Chennai");
+    strcpy(airlineSystem.airlines[4].flights[4].departureTime, "09:15 PM");
+    strcpy(airlineSystem.airlines[4].flights[4].arrivalTime, "11:30 PM");
+    airlineSystem.airlines[4].flights[4].availableSeats = 100;
+    airlineSystem.airlines[4].flights[4].price = 185.0;
+
+    // Initialize queue
+    Queue queue;
+    queue.front = queue.rear = NULL;
+
+    int choice;
+    do {
+        displayMenu();
+        scanf("%d", &choice);
+        switch (choice) {
+            case 1:
+                bookTicket(&airlineSystem, &queue);
+                break;
+            case 2:
+                cancelTicket(&airlineSystem, &queue);
+                break;
+            case 3:
+                viewBookingHistory();
+                break;
+            case 4:
+                checkFlightStatus();
+                break;
+            case 0:
+                printf("Exiting program.\n");
+                break;
+            default:
+                printf("Invalid choice. Please try again.\n");
+        }
+    } while (choice != 0);
+
+    return 0;
+}
